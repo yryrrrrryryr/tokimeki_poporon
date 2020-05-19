@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from requests_oauthlib import OAuth1Session
+from consts import *
 import json
 import time
 import datetime
@@ -11,19 +12,62 @@ import unicodedata
 import os
 import base64
 import io
+import ntplib
 
-# URL:
-url_update = 'https://api.twitter.com/1.1/statuses/update.json'
-url_follow = 'https://api.twitter.com/1.1/followers/list.json'
-url_icon   = 'https://api.twitter.com/1.1/account/update_profile_image.json'
+def id_to_unix(x):
+	return datetime.datetime(1970, 1, 1, 9) + datetime.timedelta(milliseconds = int(x / 2**22) + 1288834974657)
 
-def initialize(hello,CK,CS,AT,AS):
-	os.system('cls')
-	if(len(hello) >= 1):
-		print(hello,'\n')
+def unix_to_id(x):
+	return (int(x.timestamp() * 1000 - 1288834974657) << 22)
+
+def since_id(hour,minute):
+	time = datetime.datetime.now().replace(hour=hour,minute=minute,second=0,microsecond=0)
+	return unix_to_id(time)
+
+def delta_ms(x):
+	ans = ((x.days * 86400 + x.seconds) * 1000 + (x.microseconds / 1000))
+	return ans
+
+def initialize(CK,CS,AT,AS):
+	try:
+		os.system('cls')
+	except:
+		pass
 	twitter = OAuth1Session(CK,CS,AT,AS)
 	return twitter
 
+def time_check(tweet,twitter):
+	if(len(tweet) == 5):
+		cnt = 1
+	else:
+		try:
+			cnt = int(tweet[5:])
+		except:
+			cnt = 1
+	q_str = "from:{0}".format(userID)
+	params = {'q': q_str, 'count': cnt}
+	req = twitter.get(url_search_std, params=params)
+	if req.status_code == 200:
+		json_data = json.loads(req.text)
+		result = json_data['statuses']
+		
+	for t,r in zip(range(cnt),result):
+		time = (datetime.datetime(1970, 1, 1, 9) + datetime.timedelta(milliseconds = int(r['id'] / 2**22) + 1288834974657)) 
+		time_str = time.strftime('%H:%M:%S.%f')[:-3]
+		print(t,time_str)
+
+def fetch_offset():
+	offset_list = []
+	req_iter = 1
+	c = ntplib.NTPClient()
+	for i in range(req_iter):
+		res = c.request('ntp.nict.jp', version=3)
+		offset_list.append(res.offset*1000)
+		if(i+1 < req_iter):
+			time.sleep(1)
+	print('offset:',round(np.mean(offset_list)),'ms','\n')
+	return round(np.mean(offset_list))
+	
 def trim_text(text):
 	trimmed_text = text
 	cnt = 0.
@@ -38,34 +82,50 @@ def trim_text(text):
 		cnt += delta
 	return trimmed_text,cnt
 
-def tweet_icon(gauge,twitter):
-	icon_name = './icon/icon_' + str(gauge) + '.png'
-
-	with open(icon_name, 'rb') as icon:
-		enc_icon = base64.encodestring(icon.read())
+def tweet_icon(tweet,twitter):
+	gauge = str(tweet[5:])
+	icon_name = './icon/{0}.png'.format(gauge)
 	
-	params = {'image': enc_icon,'include_entities': 'false','skip_status': 'true'}
-	req = twitter.post(url_icon, data = params)
-	
-	if req.status_code == 200:
-		print('OK')
+	if(os.path.exists(icon_name)):
+		with open(icon_name, 'rb') as icon:
+			enc_icon = base64.encodestring(icon.read())
+		
+		params = {'image': enc_icon,'include_entities': 'false','skip_status': 'true'}
+		req = twitter.post(url_icon, data = params)
+		
+		if req.status_code == 200:
+			print('Icon successfully changed to {0}.png'.format(str(gauge)))
+		else:
+			print('Error:',req)
+		time.sleep(1)
 	else:
-		print('Error:',req)
-	time.sleep(0.5)
-
-def tweet_post(id_list,tweet_list,text,twitter):
+		print('Icon file not found: {0}.png'.format(gauge))
+	
+def tweet_post(id_list,tweet_list,text,offset,twitter):
 	tweet,cnt = trim_text(text)
 	params = {'status': tweet}
-	post_time = datetime.datetime.fromtimestamp(time.time())
+	time_push = datetime.datetime.now() + datetime.timedelta(milliseconds = offset)
 	req = twitter.post(url_update, params = params)
 	if req.status_code == 200: 
 		id = req.json()['id']
 		id_str = req.json()['id_str']
-		syaro = (datetime.datetime(1970, 1, 1, 9) + datetime.timedelta(milliseconds = int(id / 2**22) + 1288834974657))
+		syaro = id_to_unix(id)
 		syarodate = datetime.datetime(syaro.year,syaro.month,syaro.day,0,0,0)
-		syarodelta = syaro - post_time
-		syarotime = syaro.strftime('%H:%M:%S.%f')[:-3]
-		print('{0} / {1}'.format(syarotime,cnt))
+		
+		prn1 = time_push.strftime('%H:%M:%S.%f')[:-3]
+		prn2 = syaro.strftime('%H:%M:%S.%f')[:-3]
+		prn3 = int(delta_ms(syaro - time_push))
+		print("{0} -> {1} ({2} ms)".format(prn1,prn2,prn3))
+		
+		'''
+		if(tweet == '334'):
+			q_str = "334 max_id:{0} since_id:{1}".format(unix_to_id(syaro),since_id(3,34))
+			print('\n',q_str)
+		elif(tweet == 'しゃろほー'):
+			q_str = "しゃろほー max_id:{0} since_id:{1}".format(unix_to_id(syaro),since_id(0,0))
+			print('\n',q_str)
+		'''
+		
 		id_list.insert(0,id_str)
 		l = min(len(tweet),999)
 		tweet_list.insert(0,tweet[0:l])
