@@ -59,12 +59,15 @@ def time_check(tweet,twitter):
 	if req.status_code == 200:
 		json_data = json.loads(req.text)
 		result = json_data['statuses']
-		
+		if(len(result) == 0):
+			print('No tweets found...')
+
 	for t,r in zip(range(cnt),result):
 		time = (datetime.datetime(1970, 1, 1, 9) + datetime.timedelta(milliseconds = int(r['id'] / 2**22) + 1288834974657)) 
 		time_str = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 		print('{0}: {1} {2}'.format(str(t).rjust(3),time_str,trim_text(r['text'],10)[0]))
-
+	print('')
+	
 def fetch_offset(req_iter=1):
 	offset_list = []
 	c = ntplib.NTPClient()
