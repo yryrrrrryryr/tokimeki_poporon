@@ -80,7 +80,8 @@ def fetch_offset(req_iter=1):
 	return round(np.mean(offset_list))
 	
 def trim_text(text,length):
-	trimmed_text = ' '.join(text.splitlines())
+	text = ' '.join(text.splitlines())
+	trimmed_text = text
 	cnt = 0.
 	l_lim = -1
 	for c,l in zip(text,range(len(text))):
