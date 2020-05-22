@@ -37,14 +37,23 @@ def initialize(CK,CS,AT,AS):
 	return twitter
 
 def time_check(tweet,twitter):
-	if(len(tweet) == 5):
-		cnt = 1
-	else:
+	keyword = ''
+	cnt = 1
+	if(len(tweet) > 5):
 		try:
-			cnt = int(tweet[5:])
+			opt = tweet[5:].split()
+			if(len(opt) > 1):
+				keyword = str(opt[0]) + ' '
+				cnt = int(opt[1])
+			else:
+				if(opt[0].isdecimal()):
+					if(int(opt[0]) > 100): #101以上の数字はキーワードとみなす
+						keyword = str(opt[0]) + ' '
+					else: #100以下の数字は取得したいツイート数とみなす
+						cnt = int(opt[0])
 		except:
-			cnt = 1
-	q_str = "from:{0}".format(userID)
+			pass
+	q_str = "{0}from:{1}".format(keyword,userID)
 	params = {'q': q_str, 'count': cnt}
 	req = twitter.get(url_search_std, params=params)
 	if req.status_code == 200:
@@ -53,12 +62,11 @@ def time_check(tweet,twitter):
 		
 	for t,r in zip(range(cnt),result):
 		time = (datetime.datetime(1970, 1, 1, 9) + datetime.timedelta(milliseconds = int(r['id'] / 2**22) + 1288834974657)) 
-		time_str = time.strftime('%H:%M:%S.%f')[:-3]
-		print(t,time_str)
+		time_str = time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+		print('{0}: {1} {2}'.format(str(t).rjust(3),time_str,trim_text(r['text'],10)[0]))
 
-def fetch_offset():
+def fetch_offset(req_iter=1):
 	offset_list = []
-	req_iter = 1
 	c = ntplib.NTPClient()
 	for i in range(req_iter):
 		res = c.request('ntp.nict.jp', version=3)
@@ -68,8 +76,8 @@ def fetch_offset():
 	print('offset:',round(np.mean(offset_list)),'ms','\n')
 	return round(np.mean(offset_list))
 	
-def trim_text(text):
-	trimmed_text = text
+def trim_text(text,length):
+	trimmed_text = ' '.join(text.splitlines())
 	cnt = 0.
 	l_lim = -1
 	for c,l in zip(text,range(len(text))):
@@ -77,7 +85,7 @@ def trim_text(text):
 			delta = 1.
 		else:
 			delta = 0.5
-		if((cnt <= 140) and (cnt+delta > 140)):
+		if((cnt <= length) and (cnt+delta > length)):
 			trimmed_text = text[0:l]
 		cnt += delta
 	return trimmed_text,cnt
@@ -102,7 +110,7 @@ def tweet_icon(tweet,twitter):
 		print('Icon file not found: {0}.png'.format(gauge))
 	
 def tweet_post(id_list,tweet_list,text,offset,twitter):
-	tweet,cnt = trim_text(text)
+	tweet,cnt = trim_text(text,140)
 	params = {'status': tweet}
 	time_push = datetime.datetime.now() + datetime.timedelta(milliseconds = offset)
 	req = twitter.post(url_update, params = params)
@@ -115,17 +123,7 @@ def tweet_post(id_list,tweet_list,text,offset,twitter):
 		prn1 = time_push.strftime('%H:%M:%S.%f')[:-3]
 		prn2 = syaro.strftime('%H:%M:%S.%f')[:-3]
 		prn3 = int(delta_ms(syaro - time_push))
-		print("{0} -> {1} ({2} ms)".format(prn1,prn2,prn3))
-		
-		'''
-		if(tweet == '334'):
-			q_str = "334 max_id:{0} since_id:{1}".format(unix_to_id(syaro),since_id(3,34))
-			print('\n',q_str)
-		elif(tweet == 'しゃろほー'):
-			q_str = "しゃろほー max_id:{0} since_id:{1}".format(unix_to_id(syaro),since_id(0,0))
-			print('\n',q_str)
-		'''
-		
+		print("{0} -> {1} ({2} ms)".format(prn1,prn2,prn3))		
 		id_list.insert(0,id_str)
 		l = min(len(tweet),999)
 		tweet_list.insert(0,tweet[0:l])

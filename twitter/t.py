@@ -6,7 +6,7 @@ twitter = initialize(CK,CS,AT,AS)
 offset  = fetch_offset()
 
 while True:
-	print("Input:", end="")
+	print("Input: ", end="")
 	tweet = input()
 	if(tweet == 'cls'):
 		try:
